@@ -1,5 +1,25 @@
 import https from 'https';
 
+// 定义智谱AI API响应类型
+interface ZhiPuAIResponse {
+  id: string;
+  model: string;
+  choices: Array<{
+    index: number;
+    message: {
+      role: string;
+      content: string;
+    };
+    finish_reason: string;
+  }>;
+  error?: {
+    message: string;
+    type: string;
+    code?: string;
+  };
+}
+
+
 let myHandler = async function (event, context, callback, logger) {
   logger.info("收到请求事件：" + JSON.parse(event));
 
@@ -59,9 +79,32 @@ let myHandler = async function (event, context, callback, logger) {
     const req = https.request(options, (res) => {
       res.setEncoding('utf8'); // 设置编码
       let data = '';
+
       res.on('data', (chunk) => {
         data += chunk; // 接收数据，构造返回结果
       });
+
+      res.on('end', () => {
+        if (res.statusCode === 200) {
+          resolve(data);
+        } else {
+          reject(new Error(`请求失败，状态码: ${res.statusCode}, 响应: ${data}`));
+        }
+      });
+
+      // 获取返回结果
+      req.on('error', (err) => {
+        logger.error('请求错误：' + err.message)
+        reject(err);
+      });
+
+      req.on('timeout', () => {
+        logger.error('请求超时')
+        req.destroy(); // 销毁请求
+        reject(new Error('请求超时'));
+      });
+
+      req.end(); // 结束请求
     });
 
 
