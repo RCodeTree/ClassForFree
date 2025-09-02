@@ -69,7 +69,7 @@ let myHandler = async function (event, context, callback, logger) {
       'Content-Length': Buffer.byteLength(requestData),
       'Accept-Charset': 'utf-8'
     },
-    timeout: 30000
+    timeout: 30000,
   };
 
 
@@ -88,6 +88,7 @@ let myHandler = async function (event, context, callback, logger) {
         if (res.statusCode === 200) {
           resolve(data);
         } else {
+          logger.error('请求失败，状态码：' + res.statusCode)
           reject(new Error(`请求失败，状态码: ${res.statusCode}, 响应: ${data}`));
         }
       });
