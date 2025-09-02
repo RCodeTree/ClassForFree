@@ -92,6 +92,7 @@ let myHandler = async function (event, context, callback, logger) {
         }
       });
 
+
       // 获取返回结果
       req.on('error', (err) => {
         logger.error('请求错误：' + err.message)
@@ -106,14 +107,27 @@ let myHandler = async function (event, context, callback, logger) {
 
       req.end(); // 结束请求
     });
-
-
   });
+
+
+  // 识别解析结果
+  const response: ZhiPuAIResponse = JSON.parse(responseData); // 解析返回结果
+  logger.info("接口调用成功, 返回结果：" + JSON.stringify(response));
+  if (response.error) {
+    throw new Error("接口调用异常, 错误信息：" + response.error.message);
+  }
+
+  const firstChoice = response.choices[0];
+  if (!firstChoice.message || !firstChoice.message.content) {
+    throw new Error("接口调用异常, 返回结果中缺少内容");
+  }
+
+  const trafficSignInfo = firstChoice.message.content;
 
 
   callback({
     code: 0,
-    // desc: `Hello ${reqName}`
+    desc: `交通标识识别成功，结果为： ${trafficSignInfo}`
   });
 };
 
