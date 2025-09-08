@@ -9,7 +9,7 @@ struct MyIndex {
     Column() {
       Button('调用云函数')
         .fontSize(30)
-        .onClick(async () => {
+        /*.onClick(async () => {
           const result = await cloud.callFunction({
             name: 'traffic-sign-detect',
             version: '$latest',
@@ -17,7 +17,7 @@ struct MyIndex {
           })
 
           this.message = result.getValue().desc
-        })
+        })*/
 
       Text(this.message)
         .fontSize(20)
