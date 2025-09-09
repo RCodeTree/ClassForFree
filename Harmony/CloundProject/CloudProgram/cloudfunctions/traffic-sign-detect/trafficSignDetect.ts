@@ -41,6 +41,9 @@ interface ZhiPuAiResponse {
   id: string; // 任务ID
   model: string; // 模型名称
   choice: Choice[]; // 当前对话中输出的内容
+  error: {
+    message: string;
+  };
 }
 
 
@@ -82,115 +85,12 @@ let myHandler = async function (event, context, callback, logger) {
     ]
   });
 
-  let reqDataObj: ZhiPuAIRequest = JSON.parse(requestData) as ZhiPuAIRequest;
-  let trafficSignInfo: string = '';
-
-
-  const response = await callZhiPuAI(reqDataObj)
-    .then((response) => {
-      logger.info("response: " + JSON.stringify(response));
-
-      let responseData: ZhiPuAiResponse;
-
-
-      if (typeof response === "string") {
-        responseData = JSON.parse(response) as ZhiPuAiResponse;
-      }
-
-      /*
-        检查响应结构
-      */
-      if (!responseData.choice) {
-        throw new Error("API响应格式异常，缺少choice字段");
-      }
-
-      if (responseData.choice.length === 0) {
-        throw new Error("API响应中未找到有效的识别结果");
-      }
-
-
-      /*
-        获取识别结果
-      */
-      const firstChoice = responseData.choice[0];
-      if (!firstChoice.message || !firstChoice.message.content) {
-        throw new Error("API响应格式异常，缺少message或content字段");
-      }
-
-      trafficSignInfo = firstChoice.message.content;
-
-    })
-
-
-  /*// 构建请求选项
-  const apiUrl = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
-  const urlParts = new URL(apiUrl);
-  const options = {
-    hostname: urlParts.hostname,
-    port: 443,
-    path: urlParts.pathname,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + api_key,
-      'Content-Length': Buffer.byteLength(requestData),
-      'Accept-Charset': 'utf-8'
-    },
-    timeout: 30000,
-  };
-
-
-  // 调用接口
-  const responseData = await new Promise<string>((resolve, reject) => {
-    // 调用接口
-    const req = https.request(options, (res) => {
-      res.setEncoding('utf8'); // 设置编码
-      let data = '';
-
-      res.on('data', (chunk) => {
-        data += chunk; // 接收数据，构造返回结果
-      });
-
-      res.on('end', () => {
-        if (res.statusCode === 200) {
-          resolve(data);
-        } else {
-          logger.error('请求失败，状态码：' + res.statusCode)
-          reject(new Error(`请求失败，状态码: ${res.statusCode}, 响应: ${data}`));
-        }
-      });
-
-
-      // 获取返回结果
-      req.on('error', (err) => {
-        logger.error('请求错误：' + err.message)
-        reject(err);
-      });
-
-      req.on('timeout', () => {
-        logger.error('请求超时')
-        req.destroy(); // 销毁请求
-        reject(new Error('请求超时'));
-      });
-
-      req.end(); // 结束请求
-    });
-  });
-
-
-  // 识别解析结果
-  const response: ZhiPuAIResponse = JSON.parse(responseData); // 解析返回结果
-  logger.info("接口调用成功, 返回结果：" + JSON.stringify(response));
-  if (response.error) {
-    throw new Error("接口调用异常, 错误信息：" + response.error.message);
+  let trafficSignInfo = '';
+  try {
+    trafficSignInfo = await callZhiPuAI(requestData);
+  } catch (error) {
+    logger.error('Error: ', error);
   }
-
-  const firstChoice = response.choices[0];
-  if (!firstChoice.message || !firstChoice.message.content) {
-    throw new Error("接口调用异常, 返回结果中缺少内容");
-  }
-
-  const trafficSignInfo = firstChoice.message.content;*/
 
 
   callback({
@@ -200,43 +100,71 @@ let myHandler = async function (event, context, callback, logger) {
 };
 
 // 调用智谱AI接口
-function callZhiPuAI(reqData: ZhiPuAIRequest): Promise<ZhiPuAiResponse> {
+async function callZhiPuAI(reqData: string): Promise<string> {
   const api_key = "02e9ab6ba0764c9382814bccbf25c5fd.iJY1OVl6MRy4aYnC";
-  let apiUrl = 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
-  const urlParts = new URL(apiUrl);
+  let apiUrl = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
+
+  // 请求头
   const options = {
-    hostname: urlParts.hostname,
     port: 443,
-    path: urlParts.pathname,
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${api_key}`,
-      'Content-Length': Buffer.byteLength(JSON.stringify(reqData)),
-      'Accept-Charset': 'UTF-8'
     },
-    timeout: 30000,
-
+    timeout: 30000
   };
 
-
-  return new Promise<ZhiPuAiResponse>((resolve, reject) => {
-    https.request(apiUrl, options, (res) => {
+  // 调用智谱AI接口，拿到响应结果
+  const responseData = await new Promise<string>((resolve, reject) => {
+    const req = https.request(apiUrl, options, (res) => {
       res.setEncoding('utf8');
       console.info('response: ' + JSON.stringify(res));
 
+
+      let rawData = '';
+      res.on('data', (chunk) => {
+        rawData += chunk;
+      });
+
       res.on('end', () => {
         if (res.statusCode === 200) {
-          let result: ZhiPuAiResponse = JSON.parse(res.statusMessage) as ZhiPuAiResponse;
-          resolve(result);
+          resolve(rawData);
         } else {
           reject(new Error(`请求失败，状态码: ${res.statusCode}, 响应: ${res.statusMessage}`));
         }
-
       });
+
+    });
+
+
+    req.on('error', (error) => {
+      reject(error);
     })
+
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error('请求超时'));
+    })
+
+    req.write(reqData);
+    req.end();
+
   });
 
+
+  // 解析响应结果
+  const response: ZhiPuAiResponse = JSON.parse(responseData);
+  if (response.error) {
+    throw new Error("智谱AI接口错误，" + response.error.message);
+  }
+
+  const firstChoice = response.choice[0];
+  if (!firstChoice.message || !firstChoice.message.content) {
+    throw new Error("智谱AI响应格式异常，缺少message或content字段");
+  }
+
+  return firstChoice.message.content;
 }
 
 
